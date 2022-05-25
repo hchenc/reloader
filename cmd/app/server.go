@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"github.com/hchenc/reloader/cmd/app/options"
+	"github.com/hchenc/reloader/pkg/constants"
 	"github.com/hchenc/reloader/pkg/controllers"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -41,7 +42,7 @@ func NewReloaderCommand() *cobra.Command {
 	}
 
 	// options
-	cmd.PersistentFlags().BoolVar(&options.LeaderElect, "leader-elect", true, "")
+	cmd.PersistentFlags().BoolVar(&options.LeaderElect, "leader-elect", false, "")
 
 	return cmd
 }
@@ -65,14 +66,14 @@ func run(config *options.KubernetesOptions, ctx context.Context) error {
 		Scheme: scheme,
 		Port:   9443,
 	}
-	//if options.LeaderElect {
-	//	mgrOptions.LeaderElection = options.LeaderElect
-	//	mgrOptions.LeaderElectionNamespace = constants.DevopsNamespace
-	//	mgrOptions.LeaderElectionID = "reloader-controller-manager-leader-election"
-	//	mgrOptions.LeaseDuration = &leaderElection.LeaseDuration
-	//	mgrOptions.RetryPeriod = &leaderElection.RetryPeriod
-	//	mgrOptions.RenewDeadline = &leaderElection.RenewDeadline
-	//}
+	if options.LeaderElect {
+		mgrOptions.LeaderElection = options.LeaderElect
+		mgrOptions.LeaderElectionNamespace = constants.DevopsNamespace
+		mgrOptions.LeaderElectionID = "workload-reloader-leader-election"
+		mgrOptions.LeaseDuration = &leaderElection.LeaseDuration
+		mgrOptions.RetryPeriod = &leaderElection.RetryPeriod
+		mgrOptions.RenewDeadline = &leaderElection.RenewDeadline
+	}
 	klog.V(0).Info("setting up manager")
 	ctrl.SetLogger(klogr.New())
 
@@ -89,13 +90,4 @@ func run(config *options.KubernetesOptions, ctx context.Context) error {
 	return nil
 	//collectors := metrics.SetupPrometheusEndpoint()
 
-}
-
-func getStringSliceFromFlags(cmd *cobra.Command, flag string) ([]string, error) {
-	slice, err := cmd.Flags().GetStringSlice(flag)
-	if err != nil {
-		return nil, err
-	}
-
-	return slice, nil
 }

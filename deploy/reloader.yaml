@@ -1,154 +1,61 @@
----
-# Source: reloader/templates/serviceaccount.yaml
 apiVersion: v1
-kind: ServiceAccount
+kind: Namespace
 metadata:
-  annotations:
-    meta.helm.sh/release-namespace: "default"
-    meta.helm.sh/release-name: "reloader"
-  labels:
-    app: reloader-reloader
-    chart: "reloader-v0.0.110"
-    release: "reloader"
-    heritage: "Helm"
-    app.kubernetes.io/managed-by: "Helm"
-  name: reloader-reloader
-  namespace: default
+  name: devops-system
 ---
 # Source: reloader/templates/clusterrole.yaml
 apiVersion: rbac.authorization.k8s.io/v1
-
 kind: ClusterRole
 metadata:
-  annotations:
-    meta.helm.sh/release-namespace: "default"
-    meta.helm.sh/release-name: "reloader"
-  labels:
-    app: reloader-reloader
-    chart: "reloader-v0.0.110"
-    release: "reloader"
-    heritage: "Helm"
-    app.kubernetes.io/managed-by: "Helm"
-  name: reloader-reloader-role
-  namespace: default
+  name: devops-operator-role
 rules:
   - apiGroups:
-      - ""
+      - '*'
     resources:
-      - secrets
-      - configmaps
+      - '*'
     verbs:
-      - list
-      - get
-      - watch
-  - apiGroups:
-      - "apps"
-    resources:
-      - deployments
-      - daemonsets
-      - statefulsets
-    verbs:
-      - list
-      - get
-      - update
-      - patch
-  - apiGroups:
-      - "extensions"
-    resources:
-      - deployments
-      - daemonsets
-    verbs:
-      - list
-      - get
-      - update
-      - patch
+      - '*'
 ---
-# Source: reloader/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
-
 kind: ClusterRoleBinding
 metadata:
-  annotations:
-    meta.helm.sh/release-namespace: "default"
-    meta.helm.sh/release-name: "reloader"
-  labels:
-    app: reloader-reloader
-    chart: "reloader-v0.0.110"
-    release: "reloader"
-    heritage: "Helm"
-    app.kubernetes.io/managed-by: "Helm"
-  name: reloader-reloader-role-binding
-  namespace: default
+  name: devops-reloader-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: reloader-reloader-role
+  name: devops-operator-role
 subjects:
   - kind: ServiceAccount
-    name: reloader-reloader
-    namespace: default
+    name: default
+    namespace: devops-system
 ---
 # Source: reloader/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    meta.helm.sh/release-namespace: "default"
-    meta.helm.sh/release-name: "reloader"
-  labels:
-    app: reloader-reloader
-    chart: "reloader-v0.0.110"
-    release: "reloader"
-    heritage: "Helm"
-    app.kubernetes.io/managed-by: "Helm"
-    group: com.stakater.platform
-    provider: stakater
-    version: v0.0.110
   name: reloader-reloader
-  namespace: default
+  namespace: devops-system
 spec:
   replicas: 1
   revisionHistoryLimit: 2
   selector:
     matchLabels:
-      app: reloader-reloader
+      app: devops-reloader
       release: "reloader"
   template:
     metadata:
       labels:
-        app: reloader-reloader
-        chart: "reloader-v0.0.110"
-        release: "reloader"
-        heritage: "Helm"
-        app.kubernetes.io/managed-by: "Helm"
-        group: com.stakater.platform
-        provider: stakater
-        version: v0.0.110
+        app: devops-reloader
     spec:
       containers:
-      - image: "stakater/reloader:v0.0.110"
+      - image: 364554757/reloader:v0.0.1
+        args:
+          --leader-elect=true
         imagePullPolicy: IfNotPresent
-        name: reloader-reloader
-        ports:
-        - name: http
-          containerPort: 9090
-        livenessProbe:
-          httpGet:
-            path: /metrics
-            port: http
-          timeoutSeconds: 5
-          failureThreshold: 5
-          periodSeconds: 10
-          successThreshold: 1
-        readinessProbe:
-          httpGet:
-            path: /metrics
-            port: http
-          timeoutSeconds: 5
-          failureThreshold: 5
-          periodSeconds: 10
-          successThreshold: 1
-      securityContext: 
-        runAsNonRoot: true
-        runAsUser: 65534
-      serviceAccountName: reloader-reloader
+        name: devops-reloader
+          resources:
+            limits:
+              cpu: 2000m
+              memory: 3000Mi
+      terminationGracePeriodSeconds: 10
+      serviceAccountName: default

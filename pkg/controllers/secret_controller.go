@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"strconv"
 )
 
 var (
@@ -54,14 +55,24 @@ func (s *SecretOperatorReconciler) Reconcile(ctx context.Context, req reconcile.
 	//preprocess deployment list
 	// Ensure we always have pod annotations to add to
 	deploymentList := &appsv1.DeploymentList{}
-	deploymentListOption := client.MatchingLabels{constants.ReloaderAutoAnnotation: "true"}
+	//deploymentListOption := client.MatchingLabels{constants.ReloaderAutoAnnotation: "true"}
+	//
+	//if err := s.List(ctx, deploymentList, client.InNamespace(req.Namespace), deploymentListOption); err != nil {
+	//	s.Log.Error(err, fmt.Sprintf("Failed to list deployments %v", err))
+	//}
 
-	if err := s.List(ctx, deploymentList, client.InNamespace(req.Namespace), deploymentListOption); err != nil {
+	//cancel label selector
+	if err := s.List(ctx, deploymentList, client.InNamespace(req.Namespace)); err != nil {
 		s.Log.Error(err, fmt.Sprintf("Failed to list deployments %v", err))
 	}
 
 	for _, dp := range deploymentList.Items {
 		// find correct annotation and update the resource
+		if value, exist := dp.Annotations[constants.ReloaderAutoAnnotation]; exist {
+			if noAction, _ := strconv.ParseBool(value); !noAction {
+				continue
+			}
+		}
 		result := constants.NotUpdated
 
 		result = updateContainerEnvVars(dp, secretConfig, true)
@@ -69,12 +80,10 @@ func (s *SecretOperatorReconciler) Reconcile(ctx context.Context, req reconcile.
 		if result == constants.Updated {
 			if err := s.Update(ctx, &dp, &client.UpdateOptions{FieldManager: "Reloader"}); err != nil {
 				logrus.Errorf("Update for '%s' in namespace '%s' failed with error %v", dp.Name, dp.Namespace, err)
-				//collectors.Reloaded.With(prometheus.Labels{"success": "false"}).Inc()
 				return reconcile.Result{}, err
 			} else {
 				logrus.Infof("Changes detected in '%s' in namespace '%s'", dp.Name, dp.Namespace)
 				logrus.Infof("Updated '%s' in namespace '%s'", dp.Name, dp.Namespace)
-				//collectors.Reloaded.With(prometheus.Labels{"success": "true"}).Inc()
 			}
 		}
 	}

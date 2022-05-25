@@ -11,14 +11,6 @@ var (
 		"sit",
 		"uat",
 	}
-	DefaultExcludeNamespaces = []string{
-		"system",
-		"kube",
-	}
-	DefaultExcludeNames = []string{
-		"system",
-		"admin",
-	}
 )
 
 type filterPredicate struct{}
@@ -62,7 +54,6 @@ func checkLabels(labels map[string]string, target map[string]string, force bool)
 			} else {
 				result = result || exists
 			}
-
 		}
 	}
 	return result

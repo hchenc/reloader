@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"strconv"
 )
 
 var (
@@ -53,15 +54,23 @@ func (c *ConfigMapOperatorReconciler) Reconcile(ctx context.Context, req reconci
 	configmapConfig := crypto.GetConfigmapConfig(configmap)
 
 	//preprocess deployment list
-	// Ensure we always have pod annotations to add to
 	deploymentList := &appsv1.DeploymentList{}
-	deploymentListOption := client.MatchingLabels{constants.ReloaderAutoAnnotation: "true"}
 
-	if err := c.List(ctx, deploymentList, client.InNamespace(req.Namespace), deploymentListOption); err != nil {
+	//if err := c.List(ctx, deploymentList, client.InNamespace(req.Namespace), client.MatchingLabels{constants.ReloaderAutoAnnotation: "true"}); err != nil {
+	//	c.Log.Error(err, fmt.Sprintf("Failed to list deployments %v", err))
+	//}
+
+	//cancel label selector
+	if err := c.List(ctx, deploymentList, client.InNamespace(req.Namespace)); err != nil {
 		c.Log.Error(err, fmt.Sprintf("Failed to list deployments %v", err))
 	}
 
 	for _, dp := range deploymentList.Items {
+		if value, exist := dp.Annotations[constants.ReloaderAutoAnnotation]; exist {
+			if noAction, _ := strconv.ParseBool(value); !noAction {
+				continue
+			}
+		}
 		// find correct annotation and update the resource
 		result := constants.NotUpdated
 
@@ -70,12 +79,10 @@ func (c *ConfigMapOperatorReconciler) Reconcile(ctx context.Context, req reconci
 		if result == constants.Updated {
 			if err := c.Update(ctx, &dp, &client.UpdateOptions{FieldManager: "Reloader"}); err != nil {
 				logrus.Errorf("Update for '%s' in namespace '%s' failed with error %v", dp.Name, dp.Namespace, err)
-				//collectors.Reloaded.With(prometheus.Labels{"success": "false"}).Inc()
 				return reconcile.Result{}, err
 			} else {
 				logrus.Infof("Changes detected in '%s' in namespace '%s'", dp.Name, dp.Namespace)
 				logrus.Infof("Updated '%s' in namespace '%s'", dp.Name, dp.Namespace)
-				//collectors.Reloaded.With(prometheus.Labels{"success": "true"}).Inc()
 			}
 		}
 	}

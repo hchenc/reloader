@@ -1,88 +1,12 @@
-# note: call scripts from /scripts
-
-.PHONY: default build build-image test stop push apply deploy release release-all manifest push
-
-OS ?= linux
-ARCH ?= ???
-ALL_ARCH ?= arm64 arm amd64
-
-BUILDER_IMAGE ?=
-BASE_IMAGE    ?=
-BINARY ?= Reloader
-DOCKER_IMAGE ?= stakater/reloader
-
-# Default value "dev"
-VERSION ?= 0.0.1
-
-REPOSITORY_GENERIC = ${DOCKER_IMAGE}:${VERSION}
-REPOSITORY_ARCH = ${DOCKER_IMAGE}:v${VERSION}-${ARCH}
-BUILD=
-
-GOCMD = go
-GOFLAGS ?= $(GOFLAGS:)
-LDFLAGS =
-GOPROXY   ?=
-GOPRIVATE ?=
-
-default: build test
-
+REPO ?= 364554757/reloader
+TAG := $(shell git rev-parse --abbrev-ref HEAD | sed -e 's/\//-/g')-$(shell git rev-parse --short HEAD)
 install:
-	"$(GOCMD)" mod download
+	kubectl apply -f deploy/deploy.yaml
 
-run:
-	go run ./main.go
+uninstall:
+	kubectl delete -f deploy/deploy.yaml
 
-build:
-	"$(GOCMD)" build ${GOFLAGS} ${LDFLAGS} -o "${BINARY}"
-
-build-image:
-	docker buildx build \
-		--platform ${OS}/${ARCH} \
-		--build-arg GOARCH=$(ARCH) \
-		--build-arg BUILDER_IMAGE=$(BUILDER_IMAGE) \
-		--build-arg BASE_IMAGE=${BASE_IMAGE} \
-		--build-arg GOPROXY=${GOPROXY} \
-		--build-arg GOPRIVATE=${GOPRIVATE} \
-		-t "${REPOSITORY_ARCH}" \
-		--load \
-		-f Dockerfile \
-		.
-
-push:
-	docker push ${REPOSITORY_ARCH}
-
-release: build-image push manifest
-
-release-all:
-	-rm -rf ~/.docker/manifests/*
-	# Make arch-specific release
-	@for arch in $(ALL_ARCH) ; do \
-		echo Make release: $$arch ; \
-		make release ARCH=$$arch ; \
-	done
-
-	set -e
-	docker manifest push --purge $(REPOSITORY_GENERIC)
-
-manifest:
-	set -e
-	docker manifest create -a $(REPOSITORY_GENERIC) $(REPOSITORY_ARCH)
-	docker manifest annotate --arch $(ARCH) $(REPOSITORY_GENERIC)  $(REPOSITORY_ARCH)
-
-test:
-	"$(GOCMD)" test -timeout 1800s -v ./...
-
-stop:
-	@docker stop "${BINARY}"
-
-apply:
-	kubectl apply -f deployments/manifests/ -n temp-reloader
-
-deploy: binary-image push apply
-
-# Bump Chart
-bump-chart: 
-	sed -i "s/^version:.*/version: v$(VERSION)/" deployments/kubernetes/chart/reloader/Chart.yaml
-	sed -i "s/^appVersion:.*/appVersion: v$(VERSION)/" deployments/kubernetes/chart/reloader/Chart.yaml
-	sed -i "s/tag:.*/tag: v$(VERSION)/" deployments/kubernetes/chart/reloader/values.yaml
-	sed -i "s/version:.*/version: v$(VERSION)/" deployments/kubernetes/chart/reloader/values.yaml
+docker-build:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o ./bin/reloader ./cmd/reloader.go
+	docker build . -t $(REPO):$(TAG) -f deploy/Dockerfile
+	docker push $(REPO):$(TAG)
