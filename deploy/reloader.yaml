@@ -41,21 +41,20 @@ spec:
   selector:
     matchLabels:
       app: devops-reloader
-      release: "reloader"
   template:
     metadata:
       labels:
         app: devops-reloader
     spec:
       containers:
-      - image: 364554757/reloader:v0.0.1
+      - image: 364554757/reloader:dev-68b48bc
         args:
-          --leader-elect=true
+          - --leader-elect=true
         imagePullPolicy: IfNotPresent
         name: devops-reloader
-          resources:
-            limits:
-              cpu: 2000m
-              memory: 3000Mi
+#          resources:
+#            limits:
+#              cpu: 2000m
+#              memory: 3000Mi
       terminationGracePeriodSeconds: 10
       serviceAccountName: default
